@@ -89,16 +89,18 @@ Damit erscheint auf dem Marker direkt die aktuelle LQI-Zahl. Den tatsächlichen 
 
 Zusätzlich zu den Sensoren erzeugt die Integration pro ausgewählter Station eine `geo_location.*`-Entität mit der gemeinsamen Quelle `uba_lqi`.
 
-Damit reicht in einer Home-Assistant-Karte eine einzige Quelle aus, um **alle ausgewählten UBA-LQI-Stationen automatisch** anzuzeigen:
+Für die Karte reicht **eine einzige Quelle**. Es darf dabei kein `label_mode` gesetzt werden, damit Home Assistant das dynamische `entity_picture` der Station als Marker verwendet:
 
 ```yaml
 type: map
 auto_fit: true
 cluster: false
 geo_location_sources:
-  - source: uba_lqi
-    label_mode: attribute
-    attribute: lqi
+  - uba_lqi
 ```
 
-Die Geo-Location-Entitäten liefern unter anderem die Attribute `lqi`, `lqi_label`, Stationsname und Entfernung. Neue Stationen, die später über die Integrationsoptionen ausgewählt werden, erscheinen automatisch über dieselbe Quelle.
+Der Kartenmarker ist ein dynamisches SVG mit der **aktuellen LQI-Zahl** im Zentrum. Die Farbe folgt der LQI-Stufe; bei fehlenden Daten wird ein grauer Marker mit `?` angezeigt.
+
+Die `geo_location.*`-Entität verwendet den **numerischen LQI selbst als Zustand**. Dadurch zeigt ein Klick auf den Kartenmarker im normalen Home-Assistant-Mehr-Info-Dialog direkt den aktuellen LQI samt Verlauf/History an, statt nur die Entfernung zur Station.
+
+Zusätzliche Attribute sind unter anderem `lqi_label`, Stationsname, Koordinaten, Entfernung sowie Messbeginn und Messende. Neue Stationen, die später über die Integrationsoptionen ausgewählt werden, erscheinen automatisch über dieselbe Quelle.
