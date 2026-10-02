@@ -83,3 +83,22 @@ entities:
 ```
 
 Damit erscheint auf dem Marker direkt die aktuelle LQI-Zahl. Den tatsächlichen Entity-Namen wählst du aus den erzeugten **Karte (LQI)**-Entitäten aus.
+
+
+## Geo-Location-Quelle für die Kartenansicht
+
+Zusätzlich zu den Sensoren erzeugt die Integration pro ausgewählter Station eine `geo_location.*`-Entität mit der gemeinsamen Quelle `uba_lqi`.
+
+Damit reicht in einer Home-Assistant-Karte eine einzige Quelle aus, um **alle ausgewählten UBA-LQI-Stationen automatisch** anzuzeigen:
+
+```yaml
+type: map
+auto_fit: true
+cluster: false
+geo_location_sources:
+  - source: uba_lqi
+    label_mode: attribute
+    attribute: lqi
+```
+
+Die Geo-Location-Entitäten liefern unter anderem die Attribute `lqi`, `lqi_label`, Stationsname und Entfernung. Neue Stationen, die später über die Integrationsoptionen ausgewählt werden, erscheinen automatisch über dieselbe Quelle.
