@@ -7,6 +7,7 @@ INTEGRATION_NAME = "UBA Luftqualitätsindex (LQI)"
 REPO_URL = "https://github.com/Q14siX/uba_lqi/"
 API_DOCS_URL = "https://luftqualitaet.api.bund.dev"
 
+CONF_AREA_ID = "area_id"
 CONF_LATITUDE = "latitude"
 CONF_LOCATION_SOURCE = "location_source"
 CONF_LONGITUDE = "longitude"
