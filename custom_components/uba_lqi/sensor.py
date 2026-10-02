@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -17,6 +18,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     API_DOCS_URL,
+    CONF_AREA_ID,
     AQI_OPTIONS,
     CONF_COMPONENT_DETAILS,
     CONF_SELECTED_STATIONS,
@@ -53,6 +55,15 @@ BASE_SENSOR_DESCRIPTIONS: tuple[UbaLqiSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=True,
         value_fn=lambda station: station.get("index"),
+    ),
+    UbaLqiSensorDescription(
+        key="map_lqi",
+        name="Karte (LQI)",
+        icon="mdi:map-marker",
+        entity_registry_enabled_default=True,
+        value_fn=lambda station: station.get("index"),
+        extra_attributes_fn=lambda station, station_info: _map_attributes(station, station_info),
+        display_precision=0,
     ),
     UbaLqiSensorDescription(
         key="measurement_start",
@@ -101,16 +112,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     merged = {**entry.data, **entry.options}
     station_details: dict[str, dict[str, Any]] = merged.get(CONF_STATION_DETAILS, {})
     component_details: dict[str, dict[str, Any]] = merged.get(CONF_COMPONENT_DETAILS, {})
+    area_name = _selected_area_name(hass, merged.get(CONF_AREA_ID))
 
     entities: list[SensorEntity] = []
     for station_id in merged.get(CONF_SELECTED_STATIONS, []):
         station_id = str(station_id)
         station_info = station_details.get(station_id, {})
         for description in BASE_SENSOR_DESCRIPTIONS:
-            entities.append(UbaLqiStationSensor(coordinator, description, station_id, station_info))
+            entities.append(UbaLqiStationSensor(coordinator, description, station_id, station_info, area_name))
 
         for component_id, component in component_details.items():
-            entities.append(UbaLqiComponentSensor(coordinator, station_id, station_info, str(component_id), component))
+            entities.append(UbaLqiComponentSensor(coordinator, station_id, station_info, str(component_id), component, area_name))
 
     async_add_entities(entities)
 
@@ -119,11 +131,12 @@ class UbaLqiStationSensor(CoordinatorEntity[UbaLqiDataUpdateCoordinator], Sensor
     entity_description: UbaLqiSensorDescription
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: UbaLqiDataUpdateCoordinator, description: UbaLqiSensorDescription, station_id: str, station_info: dict[str, Any]) -> None:
+    def __init__(self, coordinator: UbaLqiDataUpdateCoordinator, description: UbaLqiSensorDescription, station_id: str, station_info: dict[str, Any], area_name: str | None) -> None:
         super().__init__(coordinator)
         self.entity_description = description
         self._station_id = station_id
         self._station_info = station_info
+        self._area_name = area_name
         self._attr_unique_id = f"{station_id}_{description.key}"
         if description.enum_options is not None:
             self._attr_options = description.enum_options
@@ -143,7 +156,7 @@ class UbaLqiStationSensor(CoordinatorEntity[UbaLqiDataUpdateCoordinator], Sensor
 
     @property
     def device_info(self) -> DeviceInfo:
-        return _device_info(self._station_id, self._station_info)
+        return _device_info(self._station_id, self._station_info, self._area_name)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -159,10 +172,11 @@ class UbaLqiComponentSensor(CoordinatorEntity[UbaLqiDataUpdateCoordinator], Sens
     _attr_entity_registry_enabled_default = False
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator: UbaLqiDataUpdateCoordinator, station_id: str, station_info: dict[str, Any], component_id: str, component_info: dict[str, Any]) -> None:
+    def __init__(self, coordinator: UbaLqiDataUpdateCoordinator, station_id: str, station_info: dict[str, Any], component_id: str, component_info: dict[str, Any], area_name: str | None) -> None:
         super().__init__(coordinator)
         self._station_id = station_id
         self._station_info = station_info
+        self._area_name = area_name
         self._component_id = component_id
         self._component_info = component_info
         self._attr_unique_id = f"{station_id}_component_{component_id}"
@@ -196,7 +210,7 @@ class UbaLqiComponentSensor(CoordinatorEntity[UbaLqiDataUpdateCoordinator], Sens
 
     @property
     def device_info(self) -> DeviceInfo:
-        return _device_info(self._station_id, self._station_info)
+        return _device_info(self._station_id, self._station_info, self._area_name)
 
     @property
     def _component_state(self) -> dict[str, Any] | None:
@@ -204,7 +218,7 @@ class UbaLqiComponentSensor(CoordinatorEntity[UbaLqiDataUpdateCoordinator], Sens
         return None if station is None else station.get("components", {}).get(self._component_id)
 
 
-def _device_info(station_id: str, station_info: dict[str, Any]) -> DeviceInfo:
+def _device_info(station_id: str, station_info: dict[str, Any], area_name: str | None = None) -> DeviceInfo:
     name = station_info.get("name") or station_id
     city = station_info.get("city")
     code = station_info.get("code")
@@ -219,7 +233,29 @@ def _device_info(station_id: str, station_info: dict[str, Any]) -> DeviceInfo:
         model=MODEL,
         name=display_name,
         configuration_url=API_DOCS_URL,
+        suggested_area=area_name,
     )
+
+
+def _selected_area_name(hass: HomeAssistant, area_id: str | None) -> str | None:
+    if not area_id:
+        return None
+    area = ar.async_get(hass).async_get_area(area_id)
+    return area.name if area is not None else None
+
+
+def _map_attributes(station: dict[str, Any], station_info: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "latitude": station_info.get("latitude"),
+        "longitude": station_info.get("longitude"),
+        "station_id": station.get("station_id") or station_info.get("station_id"),
+        "station_code": station_info.get("code"),
+        "station_name": station_info.get("name"),
+        "city": station_info.get("city"),
+        "lqi": station.get("index"),
+        "lqi_label": station.get("label"),
+        "distance_km": station.get("distance_km"),
+    }
 
 
 def _primary_attributes(station: dict[str, Any], station_info: dict[str, Any]) -> dict[str, Any]:

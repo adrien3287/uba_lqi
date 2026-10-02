@@ -8,7 +8,8 @@
           "location_source": "Standortquelle",
           "search_radius_km": "Suchradius",
           "max_candidates": "Maximale Anzahl vorgeschlagener Stationen",
-          "scan_interval_minutes": "Aktualisierungsintervall"
+          "scan_interval_minutes": "Aktualisierungsintervall",
+          "area_id": "Bereich/Raum für alle Stationsgeräte"
         }
       },
       "manual_location": {
@@ -43,7 +44,8 @@
           "location_source": "Standortquelle",
           "search_radius_km": "Suchradius",
           "max_candidates": "Maximale Anzahl vorgeschlagener Stationen",
-          "scan_interval_minutes": "Aktualisierungsintervall"
+          "scan_interval_minutes": "Aktualisierungsintervall",
+          "area_id": "Bereich/Raum für alle Stationsgeräte"
         }
       },
       "manual_location": {

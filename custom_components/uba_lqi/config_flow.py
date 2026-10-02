@@ -14,6 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import StationMeta, UbaLqiApiClient, UbaLqiApiError, default_metadata_window, select_nearby_stations
 from .const import (
+    CONF_AREA_ID,
     CONF_COMPONENT_DETAILS,
     CONF_LATITUDE,
     CONF_LOCATION_SOURCE,
@@ -78,14 +79,16 @@ def _manual_coordinate_schema(config: Mapping[str, Any], hass) -> vol.Schema:
 
 
 def _base_user_schema(config: Mapping[str, Any]) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(CONF_LOCATION_SOURCE, default=config.get(CONF_LOCATION_SOURCE, LOCATION_SOURCE_HOME)): _location_source_selector(),
-            vol.Required(CONF_SEARCH_RADIUS_KM, default=config.get(CONF_SEARCH_RADIUS_KM, DEFAULT_SEARCH_RADIUS_KM)): _radius_selector(),
-            vol.Required(CONF_MAX_CANDIDATES, default=config.get(CONF_MAX_CANDIDATES, DEFAULT_MAX_CANDIDATES)): _candidate_count_selector(),
-            vol.Required(CONF_SCAN_INTERVAL_MINUTES, default=config.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES)): _scan_interval_selector(),
-        }
-    )
+    fields: dict[Any, Any] = {
+        vol.Required(CONF_LOCATION_SOURCE, default=config.get(CONF_LOCATION_SOURCE, LOCATION_SOURCE_HOME)): _location_source_selector(),
+        vol.Required(CONF_SEARCH_RADIUS_KM, default=config.get(CONF_SEARCH_RADIUS_KM, DEFAULT_SEARCH_RADIUS_KM)): _radius_selector(),
+        vol.Required(CONF_MAX_CANDIDATES, default=config.get(CONF_MAX_CANDIDATES, DEFAULT_MAX_CANDIDATES)): _candidate_count_selector(),
+        vol.Required(CONF_SCAN_INTERVAL_MINUTES, default=config.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES)): _scan_interval_selector(),
+    }
+    area_id = config.get(CONF_AREA_ID)
+    area_key = vol.Optional(CONF_AREA_ID, default=area_id) if area_id else vol.Optional(CONF_AREA_ID)
+    fields[area_key] = selector.AreaSelector()
+    return vol.Schema(fields)
 
 
 class UbaLqiConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -101,6 +104,7 @@ class UbaLqiConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             self._config = {
+                CONF_AREA_ID: user_input.get(CONF_AREA_ID),
                 CONF_LOCATION_SOURCE: user_input[CONF_LOCATION_SOURCE],
                 CONF_SEARCH_RADIUS_KM: int(user_input[CONF_SEARCH_RADIUS_KM]),
                 CONF_MAX_CANDIDATES: int(user_input[CONF_MAX_CANDIDATES]),
@@ -221,6 +225,7 @@ class UbaLqiOptionsFlow(OptionsFlow):
         if user_input is not None:
             self._config.update(
                 {
+                    CONF_AREA_ID: user_input.get(CONF_AREA_ID),
                     CONF_LOCATION_SOURCE: user_input[CONF_LOCATION_SOURCE],
                     CONF_SEARCH_RADIUS_KM: int(user_input[CONF_SEARCH_RADIUS_KM]),
                     CONF_MAX_CANDIDATES: int(user_input[CONF_MAX_CANDIDATES]),
@@ -278,6 +283,7 @@ class UbaLqiOptionsFlow(OptionsFlow):
                 return self.async_create_entry(
                     title="",
                     data={
+                        CONF_AREA_ID: self._config.get(CONF_AREA_ID),
                         CONF_LOCATION_SOURCE: self._config[CONF_LOCATION_SOURCE],
                         CONF_LATITUDE: self._config[CONF_LATITUDE],
                         CONF_LONGITUDE: self._config[CONF_LONGITUDE],

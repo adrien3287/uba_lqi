@@ -8,7 +8,8 @@
           "location_source": "Location source",
           "search_radius_km": "Search radius",
           "max_candidates": "Maximum suggested stations",
-          "scan_interval_minutes": "Update interval"
+          "scan_interval_minutes": "Update interval",
+          "area_id": "Area for all station devices"
         }
       },
       "manual_location": {
@@ -43,7 +44,8 @@
           "location_source": "Location source",
           "search_radius_km": "Search radius",
           "max_candidates": "Maximum suggested stations",
-          "scan_interval_minutes": "Update interval"
+          "scan_interval_minutes": "Update interval",
+          "area_id": "Area for all station devices"
         }
       },
       "manual_location": {
