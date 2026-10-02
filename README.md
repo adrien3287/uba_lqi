@@ -7,6 +7,8 @@ HACS-fähige Custom Integration für die Luftqualitätsdaten des Umweltbundesamt
 - Einrichtung per Config Flow
 - Auswahl nahegelegener Luftmessstationen über den Home-Assistant-Standort oder manuelle Koordinaten
 - Hauptsensor pro Station für den **UBA Luftqualitätsindex (LQI)**
+- eigener **Karte (LQI)**-Sensor pro Station mit `latitude`/`longitude`; sein Zustand ist die numerische LQI-Stufe und kann direkt als Kartenlabel verwendet werden
+- optionale Auswahl eines Home-Assistant-Bereichs/Raums bei der Einrichtung; alle erzeugten Stationsgeräte werden diesem Bereich vorgeschlagen
 - zusätzliche Diagnose-Sensoren, standardmäßig deaktiviert:
   - numerischer LQI
   - Messbeginn / Messende
@@ -64,3 +66,20 @@ Wenn das Repository später offiziell im HACS-Standardkatalog gelistet ist, reic
 - API-Doku: `https://luftqualitaet.api.bund.dev`
 - Metadaten über `/meta/json`
 - aktuelle Luftqualitätsdaten über `/airquality/json`
+
+
+## Anzeige auf einer Home-Assistant-Karte
+
+Für jede ausgewählte Station wird eine aktivierte Entität **Karte (LQI)** erzeugt. Sie besitzt numerische `latitude`- und `longitude`-Attribute und verwendet die LQI-Zahl als Zustand.
+
+Beispiel:
+
+```yaml
+type: map
+auto_fit: true
+entities:
+  - entity: sensor.DEINE_STATION_KARTE_LQI
+    label_mode: state
+```
+
+Damit erscheint auf dem Marker direkt die aktuelle LQI-Zahl. Den tatsächlichen Entity-Namen wählst du aus den erzeugten **Karte (LQI)**-Entitäten aus.
