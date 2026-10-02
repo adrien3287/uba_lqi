@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
-from homeassistant.components.geo_location import GeolocationEvent
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.entity import DeviceInfo
@@ -24,6 +24,15 @@ from .const import (
 from .coordinator import UbaLqiDataUpdateCoordinator
 
 SOURCE = DOMAIN
+
+LQI_COLORS: dict[int, tuple[str, str]] = {
+    0: ("#2E7D32", "#FFFFFF"),
+    1: ("#7CB342", "#102000"),
+    2: ("#FBC02D", "#1F1F1F"),
+    3: ("#EF6C00", "#FFFFFF"),
+    4: ("#C62828", "#FFFFFF"),
+}
+UNKNOWN_COLOR = ("#616161", "#FFFFFF")
 
 
 async def async_setup_entry(
@@ -50,13 +59,18 @@ async def async_setup_entry(
     )
 
 
-class UbaLqiGeolocationEntity(GeolocationEvent):
-    """Represent one UBA air-quality measurement station on HA maps."""
+class UbaLqiGeolocationEntity(SensorEntity):
+    """Represent one UBA air-quality station as a map-ready numeric entity.
+
+    The entity deliberately lives on the geo_location platform so all selected
+    stations can be added to one map through geo_location_sources. Its state is
+    the measured numeric LQI instead of the distance, which makes the normal
+    Home Assistant more-info dialog show the LQI value and its history.
+    """
 
     _attr_should_poll = False
-    _attr_source = SOURCE
-    _attr_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_icon = "mdi:air-filter"
+    _attr_suggested_display_precision = 0
 
     def __init__(
         self,
@@ -76,14 +90,21 @@ class UbaLqiGeolocationEntity(GeolocationEvent):
             or station_info.get("code")
             or f"UBA LQI {station_id}"
         )
-        self._attr_latitude = _as_float(station_info.get("latitude"))
-        self._attr_longitude = _as_float(station_info.get("longitude"))
+        self._latitude = _as_float(station_info.get("latitude"))
+        self._longitude = _as_float(station_info.get("longitude"))
+        self._attr_entity_picture = _lqi_marker_picture(None)
         self._sync_from_coordinator()
 
     @property
     def available(self) -> bool:
-        """A selected station remains locatable even if a measurement is missing."""
-        return self._attr_latitude is not None and self._attr_longitude is not None
+        """Keep the station on the map whenever its coordinates are known."""
+        return self._latitude is not None and self._longitude is not None
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the numeric UBA LQI so more-info and history use the LQI."""
+        station = self._coordinator.data.get(self._station_id, {})
+        return _as_int(station.get("index"))
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -119,22 +140,42 @@ class UbaLqiGeolocationEntity(GeolocationEvent):
 
     def _sync_from_coordinator(self) -> None:
         station = self._coordinator.data.get(self._station_id, {})
-        distance = station.get("distance_km")
-        self._attr_distance = _as_float(distance)
+        self._attr_entity_picture = _lqi_marker_picture(_as_int(station.get("index")))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose attributes usable by map label_mode: attribute."""
+        """Expose map location and station metadata."""
         station = self._coordinator.data.get(self._station_id, {})
         return {
-            "lqi": station.get("index"),
+            "source": SOURCE,
+            "latitude": self._latitude,
+            "longitude": self._longitude,
+            "lqi": _as_int(station.get("index")),
             "lqi_label": station.get("label"),
             "station_id": station.get("station_id") or self._station_id,
             "station_code": self._station_info.get("code"),
             "station_name": self._station_info.get("name"),
             "city": self._station_info.get("city"),
             "distance_km": station.get("distance_km"),
+            "measurement_start": station.get("start_time"),
+            "measurement_end": station.get("end_time"),
         }
+
+
+def _lqi_marker_picture(index: int | None) -> str:
+    """Return a compact SVG marker with the LQI number in the center."""
+    background, foreground = LQI_COLORS.get(index, UNKNOWN_COLOR)
+    label = str(index) if index is not None else "?"
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" '
+        'viewBox="0 0 64 64">'
+        f'<circle cx="32" cy="32" r="29" fill="{background}" '
+        'stroke="#FFFFFF" stroke-width="4"/>'
+        f'<text x="32" y="42" text-anchor="middle" fill="{foreground}" '
+        'font-family="Arial,sans-serif" font-size="32" font-weight="700">'
+        f"{label}</text></svg>"
+    )
+    return f"data:image/svg+xml;charset=UTF-8,{quote(svg, safe='')}"
 
 
 def _selected_area_name(hass: HomeAssistant, area_id: str | None) -> str | None:
@@ -142,6 +183,15 @@ def _selected_area_name(hass: HomeAssistant, area_id: str | None) -> str | None:
         return None
     area = ar.async_get(hass).async_get_area(area_id)
     return area.name if area is not None else None
+
+
+def _as_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _as_float(value: Any) -> float | None:
